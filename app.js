@@ -149,6 +149,55 @@ console.log('--- APP.JS LOADED ---');
   function $(sel, parent = document) { return parent.querySelector(sel); }
   function $$(sel, parent = document) { return [...parent.querySelectorAll(sel)]; }
 
+  // Simple MD5 implementation for Gravatar
+  function md5(string) {
+    function k(n) { return Math.sin(n) * 4294967296 | 0; }
+    let b = [1732584193, 4023233417, 2562383102, 271733878], i = 0, a, c, d, j;
+    string = unescape(encodeURIComponent(string));
+    const s = string.length, m = [s << 3];
+    for (; i < s; i++) m[i >> 2] |= (string.charCodeAt(i) & 0xFF) << ((i % 4) << 3);
+    for (i = 0; i < 64; i += 4) {
+      a = b[0]; c = b[1]; d = b[2]; j = b[3];
+      for (let l = 0; l < 64; l++) {
+        let f, g;
+        if (l < 16) { f = (c & d) | (~c & j); g = l; }
+        else if (l < 32) { f = (j & c) | (~j & d); g = (5 * l + 1) % 16; }
+        else if (l < 48) { f = c ^ d ^ j; g = (3 * l + 5) % 16; }
+        else { f = d ^ (c | ~j); g = (7 * l) % 16; }
+        let t = j; j = d; d = c;
+        c = (c + ((a + f + k(l + 1) + (m[g] || 0)) << (l % 4 * 8 | l % 4 * 8) | (a + f + k(l + 1) + (m[g] || 0)) >>> (32 - (l % 4 * 8 | l % 4 * 8)))) | 0;
+        a = t;
+      }
+      b[0] += a; b[1] += c; b[2] += d; b[3] += j;
+    }
+    return b.map(x => (x >>> 0).toString(16).padStart(8, '0')).join('');
+  }
+
+  function renderUserAvatar(user, size = 'md') {
+    if (!user) return `<div class="user-avatar avatar-${size}">?</div>`;
+    
+    const username = user.username || 'Игрок';
+    const initial = username.charAt(0).toUpperCase();
+    const rating = user.glicko_rating || 1500;
+    const rank = getRank(rating);
+    
+    let avatarContent = `<div class="avatar-initials">${initial}</div>`;
+    
+    if (user.avatar_url) {
+      avatarContent = `<img src="${user.avatar_url}" alt="${username}" onerror="this.style.display='none'">`;
+    } else if (user.email) {
+      const hash = md5(user.email.trim().toLowerCase());
+      avatarContent = `<img src="https://www.gravatar.com/avatar/${hash}?d=mp&s=200" alt="${username}">`;
+    }
+
+    return `
+      <div class="user-avatar avatar-${size} ${rank.class}" title="${username} (${rank.title})">
+        ${avatarContent}
+        <div class="rank-badge-mini">${rank.icon}</div>
+      </div>
+    `;
+  }
+
   const addSafeListener = (id, event, handler) => {
     const el = $(id);
     if (el) el.addEventListener(event, handler);
@@ -524,7 +573,7 @@ console.log('--- APP.JS LOADED ---');
         
         <div class="nav-user-wrapper" style="margin-left:auto">
           <div class="navbar-user" id="nav-user-toggle" style="cursor:pointer">
-            <div class="user-avatar">${initial}</div>
+            ${renderUserAvatar(state.currentUser, 'sm')}
             <div style="display:flex; flex-direction:column; align-items:flex-start">
               <span style="font-weight:700">${state.currentUser.username}</span>
               <span class="level-badge" style="margin-left:0; margin-top:2px">Lvl ${getLevelInfo(state.currentUser.xp || 0).level}</span>
@@ -626,9 +675,7 @@ console.log('--- APP.JS LOADED ---');
               const rank = getRank(u.glicko_rating);
               return `
                 <div class="search-user-item" style="padding:10px 16px; display:flex; align-items:center; gap:10px; cursor:pointer; border-bottom:1px solid var(--border-glass);">
-                  <div style="width:32px; height:32px; border-radius:50%; background:var(--gradient-main); display:flex; align-items:center; justify-content:center; font-weight:bold;">
-                    ${u.username.charAt(0).toUpperCase()}
-                  </div>
+                  ${renderUserAvatar(u, 'sm')}
                   <div>
                     <div style="font-weight:600;">${u.username}</div>
                     <div style="font-size:0.75rem; color:var(--text-secondary);">${rank.icon} ${rank.title}</div>
@@ -3080,9 +3127,10 @@ console.log('--- APP.JS LOADED ---');
               return `
                 <div class="leaderboard-item">
                   <div class="leaderboard-rank">${rankBadge}</div>
-                  <div class="leaderboard-name">${user.username}</div>
+                  ${renderUserAvatar(user, 'sm')}
+                  <div class="leaderboard-name" style="margin-left: var(--spacing-md)">${user.username}</div>
                   <div class="leaderboard-stats">
-                    <span style="color:var(--success)">${user.wins}</span>
+                    <span style="color:var(--color-success)">${user.wins}</span>
                   </div>
                   <div style="flex:0 0 80px;text-align:right;color:var(--accent-green)">
                     ${user.bestSolo || 0}
@@ -3215,6 +3263,122 @@ console.log('--- APP.JS LOADED ---');
     $('#modal-overlay').classList.remove('active');
   }
 
+  function renderResults(data) {
+    const el = $('#screen-results');
+
+    if (data.isSolo) {
+      renderSoloResults(data);
+      return;
+    }
+
+    const p1 = data.player1;
+    const p2 = data.player2;
+    const iAmP1 = state.myPlayerSlot === 1;
+    const myData = iAmP1 ? p1 : p2;
+    const oppData = iAmP1 ? p2 : p1;
+
+    const myRating = myData.rating || (state.currentUser ? state.currentUser.glicko_rating : 1500) || 1500;
+    const oppRating = oppData.rating || 1500;
+
+    const isWin = myData.score > oppData.score;
+    const isLoss = myData.score < oppData.score;
+
+    let trophy = isWin ? '🏆' : (myData.score === oppData.score ? '🤝' : '😔');
+    let title = isWin ? 'Победа!' : (myData.score === oppData.score ? 'Ничья!' : 'Поражение');
+    let subtitle = isWin ? 'Великолепная игра! Ваш ум сияет ярче звёзд' : 'Не сдавайтесь! Каждая игра делает вас сильнее';
+    let titleClass = isWin ? 'color-success' : (myData.score === oppData.score ? 'color-warning' : 'color-danger');
+
+    const myRank = getRank(myRating);
+    const oppRank = getRank(oppRating);
+    const levelInfo = getLevelInfo(state.currentUser ? state.currentUser.xp : 0);
+
+    el.innerHTML = `
+      <div class="results-container">
+        <div class="results-trophy">${trophy}</div>
+        <h1 class="results-title ${titleClass}">${title}</h1>
+        <p class="results-subtitle" style="color:var(--text-secondary); margin-bottom: var(--spacing-xl)">${subtitle}</p>
+
+        <div class="results-cards">
+          <div class="result-card ${isWin ? 'winner' : ''}">
+            <div style="display:flex; justify-content:center; margin-bottom: var(--spacing-md)">
+              ${renderUserAvatar(state.currentUser, 'md')}
+            </div>
+            <div class="result-player-name">🧑 ${myData.name} (Вы)</div>
+            <div class="res-rank ${myRank.class}">${myRank.icon} ${myRank.title}</div>
+            
+            <div class="result-score-container" style="margin-top: var(--spacing-md)">
+              <div class="result-score" style="font-size: 3rem; font-weight: 800">${myData.score}</div>
+              ${data.isRanked && myData.ratingDelta !== undefined ? `
+                <div class="rating-change-badge ${myData.ratingDelta >= 0 ? 'plus' : 'minus'}">
+                  ${myData.ratingDelta >= 0 ? '+' : ''}${myData.ratingDelta}
+                </div>
+              ` : ''}
+            </div>
+
+            <div class="xp-row">
+              <div class="xp-label">
+                <span>Уровень ${levelInfo.level}</span>
+                <span>${state.currentUser.xp} / ${levelInfo.nextLevelXp} XP</span>
+              </div>
+              <div class="xp-bar-bg">
+                <div id="results-xp-fill" class="xp-bar-fill" style="width: ${levelInfo.progress}%"></div>
+              </div>
+              ${data.xpGain ? `<div style="color:var(--color-success); font-size: 0.8rem; margin-top: 4px; font-weight:700">+${data.xpGain} XP!</div>` : ''}
+            </div>
+          </div>
+
+          <div class="result-card ${isLoss ? 'winner' : ''}">
+            <div style="display:flex; justify-content:center; margin-bottom: var(--spacing-md)">
+              ${renderUserAvatar(oppData, 'md')}
+            </div>
+            <div class="result-player-name">👤 ${oppData.name}</div>
+            <div class="res-rank ${oppRank.class}">${oppRank.icon} ${oppRank.title}</div>
+            
+            <div class="result-score-container" style="margin-top: var(--spacing-md)">
+              <div class="result-score" style="font-size: 3rem; font-weight: 800">${oppData.score}</div>
+              ${data.isRanked && oppData.ratingDelta !== undefined ? `
+                <div class="rating-change-badge ${oppData.ratingDelta >= 0 ? 'plus' : 'minus'}">
+                  ${oppData.ratingDelta >= 0 ? '+' : ''}${oppData.ratingDelta}
+                </div>
+              ` : ''}
+            </div>
+          </div>
+        </div>
+
+        <div class="results-actions">
+          <button class="btn btn-primary btn-lg" id="rematch-btn">🔄 Реванш</button>
+          <button class="btn btn-secondary btn-lg" id="change-mode-btn">🚪 В лобби</button>
+          <button class="btn btn-ghost" id="share-results-btn">🔗 Поделиться</button>
+        </div>
+      </div>
+    `;
+
+    if (data.xpGain) {
+      setTimeout(() => {
+        const newXp = (state.currentUser.xp || 0) + data.xpGain;
+        const newLevelInfo = getLevelInfo(newXp);
+        const fill = $('#results-xp-fill');
+        if (fill) fill.style.width = `${newLevelInfo.progress}%`;
+      }, 600);
+    }
+
+    $('#rematch-btn').addEventListener('click', () => {
+      socket.emit('request-rematch');
+      $('#rematch-btn').textContent = '⌛ Ожидание...';
+      $('#rematch-btn').disabled = true;
+    });
+
+    $('#change-mode-btn').addEventListener('click', () => {
+      state.roomCode = null;
+      navigateTo('home');
+    });
+
+    $('#share-results-btn')?.addEventListener('click', () => {
+      const text = `Я набрал ${myData.score} очков в SciDuel! 🔥`;
+      navigator.clipboard.writeText(text).then(() => showToast('Текст скопирован!', 'success'));
+    });
+  }
+
   // ──── Profile ────
   function renderProfile() {
     if (!state.currentUser) { navigateTo('home'); return; }
@@ -3235,7 +3399,7 @@ console.log('--- APP.JS LOADED ---');
       el.innerHTML = `
         <div class="profile-container">
           <div class="profile-header">
-            <div class="profile-avatar ${userRank.class}">${initial}</div>
+            ${renderUserAvatar(user, 'lg')}
             <div class="profile-info">
               <h1>${user.username} <span class="rank-icon-small">${userRank.icon}</span></h1>
               <p class="academic-level rank-text-${userRank.class}">${userRank.title}</p>
@@ -3571,7 +3735,7 @@ console.log('--- APP.JS LOADED ---');
             <h3 style="font-size:1.1rem; color:var(--text-secondary); margin-bottom: var(--spacing-xs);">Участники (${players.length})</h3>
             ${players.map(p => `
               <div class="user-list-item">
-                <div class="user-avatar" style="width:32px; height:32px; font-size:14px">${p.name.charAt(0).toUpperCase()}</div>
+                ${renderUserAvatar(p, 'sm')}
                 <span style="font-weight:600">${p.name}</span>
                 ${p.name === state.myName ? '<span style="font-size:0.7rem; background:var(--accent-purple); padding:2px 8px; border-radius:10px">ВЫ</span>' : ''}
               </div>
@@ -3975,6 +4139,7 @@ console.log('--- APP.JS LOADED ---');
       <div class="duel-arena">
         <div class="duel-header">
           <div class="duel-score-left">
+            ${renderUserAvatar(state.currentUser, 'sm')}
             <span class="arena-player-label you-label">Вы: ${state.myName}</span>
             <span class="arena-score my-score" id="my-score-display">0</span>
           </div>
@@ -3984,6 +4149,7 @@ console.log('--- APP.JS LOADED ---');
             <div class="timer-bar-container"><div class="timer-bar" id="timer-bar"></div></div>
           </div>
           <div class="duel-score-right">
+            ${renderUserAvatar({username: state.opponentName}, 'sm')}
             <span class="arena-player-label opp-label">${state.opponentName}</span>
             <span class="arena-score opp-score" id="opp-score-display">0</span>
           </div>
@@ -4162,30 +4328,35 @@ console.log('--- APP.JS LOADED ---');
     el.innerHTML = `
       <div class="results-container">
         <div class="results-trophy">🏁</div>
-        <div class="results-title">Ваш результат и рекорд</div>
-        <div class="results-subtitle">Режим «${diffName}»</div>
+        <h1 class="results-title">Ваш рекорд</h1>
+        <p class="results-subtitle" style="color:var(--text-secondary); margin-bottom: var(--spacing-xl)">Режим: «${diffName}»</p>
 
-        <div class="solo-results-panel">
-          <div class="solo-results-score">
-            <div class="solo-score-big">${score}</div>
+        <div style="display:flex; justify-content:center; margin-bottom: var(--spacing-lg)">
+           ${renderUserAvatar(state.currentUser, 'lg')}
+        </div>
+
+        <div class="solo-results-panel" style="background:var(--bg-glass); border-radius:var(--radius-lg); padding: var(--spacing-xl); margin-bottom: var(--spacing-xl)">
+          <div class="solo-results-score" style="text-align:center">
+            <div class="solo-score-big" style="font-size: 4rem; font-weight: 800; color: var(--color-accent-blue)">${score}</div>
             <div class="solo-score-label">решено задач</div>
-            ${data.player1.xpGain ? `<div style="color:var(--accent-green); font-weight:700; margin-top:8px">+${data.player1.xpGain} XP</div>` : ''}
+            ${data.player1.xpGain ? `<div style="color:var(--color-success); font-weight:700; margin-top:8px">+${data.player1.xpGain} XP получено!</div>` : ''}
           </div>
-          <div class="solo-results-stats">
-            <div class="solo-stat-row">
-              <span>Личный рекорд:</span>
-              <span class="solo-stat-value">${Math.max(score, bestSolo)}</span>
+          
+          <div style="display:flex; justify-content:center; gap: var(--spacing-xl); margin-top: var(--spacing-lg); border-top: 1px solid var(--border-glass); padding-top: var(--spacing-md)">
+            <div>
+              <div style="color:var(--text-secondary); font-size: 0.8rem">Личный рекорд</div>
+              <div style="font-size: 1.5rem; font-weight: 700">${Math.max(score, bestSolo)}</div>
             </div>
-            <div class="solo-stat-row">
-              <span>Предыдущий рекорд:</span>
-              <span class="solo-stat-value">${bestSolo}</span>
+            <div>
+              <div style="color:var(--text-secondary); font-size: 0.8rem">Предыдущий</div>
+              <div style="font-size: 1.5rem; font-weight: 700; opacity: 0.6">${bestSolo}</div>
             </div>
           </div>
         </div>
 
         <div class="results-actions">
           <button class="btn btn-primary btn-lg" id="solo-retry-btn">🔄 Ещё раз</button>
-          <button class="btn btn-secondary btn-lg" id="solo-change-btn">⚙️ Другой режим</button>
+          <button class="btn btn-secondary btn-lg" id="solo-change-btn">🚪 В лобби</button>
           <button class="btn btn-ghost" id="solo-home-btn">🏠 Домой</button>
         </div>
       </div>
@@ -4193,8 +4364,7 @@ console.log('--- APP.JS LOADED ---');
 
     $('#solo-retry-btn').addEventListener('click', () => startSoloMode(state.difficulty));
     $('#solo-change-btn').addEventListener('click', () => {
-      renderSoloSetup(state.difficulty);
-      navigateTo('solo-setup');
+      navigateTo('home');
     });
     $('#solo-home-btn').addEventListener('click', () => navigateTo('home'));
   }
