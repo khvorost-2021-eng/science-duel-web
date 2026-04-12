@@ -684,14 +684,13 @@ console.log('--- APP.JS LOADED ---');
               `;
             }).join('');
             
-            // Add click events to items to open profile later
+            // Add click events to items to open profile
             $$('.search-user-item', searchResults).forEach((item, index) => {
-              const u = res.users[index];
+              const userTarget = res.users[index];
               item.onmouseenter = () => item.style.background = 'rgba(255,255,255,0.05)';
               item.onmouseleave = () => item.style.background = 'transparent';
               item.onclick = () => {
-                showToast(`Это профиль ${u.username}`, 'info');
-                // You could implement viewUserProfile(u.username) here
+                showUserProfile(userTarget.username);
                 searchResults.style.display = 'none';
                 searchInput.value = '';
               };
@@ -704,6 +703,88 @@ console.log('--- APP.JS LOADED ---');
         });
       });
     }
+  }
+
+  window.showUserProfile = function(username) {
+    if (state.isAuthLoading) {
+      showToast('Загрузка...', 'info');
+      return;
+    }
+    
+    // Show a loading modal first
+    openModal('profile-view');
+    const modal = $('#modal');
+    modal.innerHTML = `
+      <div class="modal-content-wrapper" style="padding-top:40px; text-align:center;">
+        <button class="modal-close" id="modal-close-btn">&times;</button>
+        <div class="loader-spinner" style="margin: 40px auto; width:40px; height:40px; border:3px solid rgba(255,255,255,0.1); border-top:3px solid var(--accent-blue); border-radius:50%; animation: spin 1s linear infinite;"></div>
+        <p style="color:var(--text-secondary)">Загружаем профиль игрока ${username}...</p>
+      </div>
+    `;
+    
+    $('#modal-close-btn').onclick = closeModal;
+
+    socket.emit('get-user', { username }, (res) => {
+      if (res && res.ok) {
+        renderProfileModal(res.user, modal);
+      } else {
+        modal.innerHTML = `
+          <div class="modal-content-wrapper" style="padding:40px; text-align:center;">
+            <button class="modal-close" id="modal-close-btn">&times;</button>
+            <div style="font-size:3rem; margin-bottom:20px;">❌</div>
+            <h3>Ошибка</h3>
+            <p style="color:var(--text-secondary)">Не удалось загрузить профиль этого игрока.</p>
+            <button class="btn btn-secondary" style="margin-top:20px" onclick="closeModal()">Закрыть</button>
+          </div>
+        `;
+        $('#modal-close-btn').onclick = closeModal;
+      }
+    });
+  };
+
+  function renderProfileModal(user, container) {
+    const rating = Math.round(user.rating || 1500);
+    const winRate = user.totalGames > 0 ? Math.round((user.wins / user.totalGames) * 100) : 0;
+    const currentRank = getRank(rating);
+
+    container.innerHTML = `
+      <div class="modal-content-wrapper" style="padding-top:20px">
+        <button class="modal-close" id="modal-close-btn">&times;</button>
+        
+        <div class="profile-header-modal" style="text-align:center; margin-bottom:30px;">
+          <div style="display:flex; justify-content:center; margin-bottom:16px;">
+            ${renderUserAvatar(user, 'lg')}
+          </div>
+          <h2 style="margin-bottom:4px">${user.username}</h2>
+          <div class="rank-label" style="display:inline-block; padding:4px 12px; background:rgba(255,255,255,0.05); border-radius:100px; font-size:0.85rem; color:var(--text-secondary);">
+             <span class="${currentRank.class}">${currentRank.icon} ${currentRank.title}</span>
+          </div>
+        </div>
+
+        <div class="stats-grid" style="display:grid; grid-template-columns: repeat(2, 1fr); gap:12px; margin-bottom:24px;">
+          <div class="stat-card" style="background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); padding:16px; border-radius:16px; text-align:center;">
+            <div style="font-size:1.4rem; font-weight:700; color:var(--accent-blue);">${rating}</div>
+            <div style="font-size:0.75rem; color:var(--text-secondary); text-transform:uppercase; letter-spacing:1px;">Рейтинг</div>
+          </div>
+          <div class="stat-card" style="background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); padding:16px; border-radius:16px; text-align:center;">
+            <div style="font-size:1.4rem; font-weight:700; color:var(--accent-green);">${winRate}%</div>
+            <div style="font-size:0.75rem; color:var(--text-secondary); text-transform:uppercase; letter-spacing:1px;">Винрейт</div>
+          </div>
+          <div class="stat-card" style="background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); padding:16px; border-radius:16px; text-align:center;">
+            <div style="font-size:1.4rem; font-weight:700; color:white;">${user.wins}</div>
+            <div style="font-size:0.75rem; color:var(--text-secondary); text-transform:uppercase; letter-spacing:1px;">Побед</div>
+          </div>
+          <div class="stat-card" style="background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); padding:16px; border-radius:16px; text-align:center;">
+            <div style="font-size:1.4rem; font-weight:700; color:white;">${user.totalGames}</div>
+            <div style="font-size:0.75rem; color:var(--text-secondary); text-transform:uppercase; letter-spacing:1px;">Игр всего</div>
+          </div>
+        </div>
+        
+        <button class="btn btn-secondary" style="width:100%;" onclick="closeModal()">Закрыть</button>
+      </div>
+    `;
+    
+    $('#modal-close-btn').onclick = closeModal;
   }
 
 
@@ -4256,7 +4337,36 @@ console.log('--- APP.JS LOADED ---');
         <div class="results-subtitle">${subtitle}</div>
 
         <div class="results-cards">
-          <div class="result-card ${myData.score > oppData.score ? 'winner' : ''}">
+    // Determine match status
+    let statusText = 'МАТЧ ЗАВЕРШЕН';
+    let statusClass = 'res-draw';
+    if (!state.isSolo) {
+      if (myData.score > oppData.score) {
+        statusText = 'ПОБЕДА!';
+        statusClass = 'res-win';
+      } else if (myData.score < oppData.score) {
+        statusText = 'ПОРАЖЕНИЕ';
+        statusClass = 'res-loss';
+      } else {
+        statusText = 'НИЧЬЯ';
+        statusClass = 'res-draw';
+      }
+    } else {
+      statusText = 'ШТУРМ ЗАВЕРШЕН';
+      statusClass = 'res-solo';
+    }
+
+    const resScreen = $('#screen-results');
+    resScreen.innerHTML = `
+      <div class="results-container results-animate">
+        <div class="results-header ${statusClass}">
+          <h1 class="results-title">${statusText}</h1>
+          <p class="results-subtitle">${state.isSolo ? 'Отличный личный результат!' : 'Блестящая дуэль подошла к концу'}</p>
+        </div>
+
+        <div class="results-cards">
+          <div class="result-card ${myData.score > oppData.score ? 'winner' : ''} results-animate-card" style="animation-delay: 0.1s">
+            <div style="margin-bottom:15px">${renderUserAvatar({ username: myData.name, rating: myRating + (myData.ratingDelta || 0) }, 'lg')}</div>
             <div class="result-player-name">🧑 ${myData.name} (Вы)</div>
             <div class="res-rank ${myRank.class}">${myRank.icon} ${myRank.title}</div>
             <div class="result-score-container">
@@ -4272,7 +4382,11 @@ console.log('--- APP.JS LOADED ---');
             ${data.isRanked ? `<div class="res-total-rating">Рейтинг: ${Math.round(myRating + (myData.ratingDelta || 0))}</div>` : ''}
             ${myData.score > oppData.score ? '<div class="result-badge">🏆 Победитель</div>' : ''}
           </div>
-          <div class="result-card ${oppData.score > myData.score ? 'winner' : ''}">
+
+          <div class="results-vs-anim">VS</div>
+
+          <div class="result-card ${oppData.score > myData.score ? 'winner' : ''} results-animate-card" style="animation-delay: 0.2s">
+            <div style="margin-bottom:15px">${renderUserAvatar({ username: oppData.name, rating: oppRating + (oppData.ratingDelta || 0) }, 'lg')}</div>
             <div class="result-player-name">👤 ${oppData.name}</div>
             <div class="res-rank ${oppRank.class}">${oppRank.icon} ${oppRank.title}</div>
             <div class="result-score-container">

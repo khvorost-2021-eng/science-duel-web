@@ -4531,3 +4531,63 @@ input:checked + .slider:before {
     box-shadow: none;
   }
 }
+
+/* --- Results Screen Enhancements --- */
+.results-animate {
+  animation: fadeInScale 0.6s cubic-bezier(0.19, 1, 0.22, 1) forwards;
+}
+
+.results-animate-card {
+  opacity: 0;
+  animation: fadeInSlideUp 0.6s cubic-bezier(0.19, 1, 0.22, 1) forwards;
+}
+
+.results-vs-anim {
+  font-size: 2rem;
+  font-weight: 800;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 20px;
+  animation: vsPulse 2s infinite ease-in-out;
+}
+
+@keyframes fadeInScale {
+  0% { opacity: 0; transform: scale(0.9) translateY(20px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes fadeInSlideUp {
+  0% { opacity: 0; transform: translateY(30px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes vsPulse {
+  0%, 100% { transform: scale(1); opacity: 0.5; }
+  50% { transform: scale(1.1); opacity: 0.8; }
+}
+
+.results-header.res-win .results-title {
+  color: var(--accent-green);
+  text-shadow: 0 0 20px rgba(16, 185, 129, 0.4);
+}
+
+.results-header.res-loss .results-title {
+  color: var(--color-danger);
+  text-shadow: 0 0 20px rgba(239, 68, 68, 0.4);
+}
+
+.results-header.res-draw .results-title {
+  color: var(--text-primary);
+}
+
+.results-header.res-solo .results-title {
+  color: var(--accent-blue);
+  text-shadow: 0 0 20px rgba(59, 130, 246, 0.4);
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}

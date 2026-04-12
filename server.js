@@ -40,13 +40,13 @@ const users = new Map();       // socketId -> user info
 
 // ──── New Feature: Achievements ────
 const ACHIEVEMENTS = {
-  'first_win': { id: 'first_win', title: 'Боевое крещение', desc: 'Первая победа в дуэли', icon: '⚔️', xp: 200 },
-  'solo_10': { id: 'solo_10', title: 'Скороход', desc: 'Набрать 10 очков в штурме', icon: '⚡', xp: 150 },
-  'solo_20': { id: 'solo_20', title: 'Гроза примеров', desc: 'Набрать 20 очков в штурме', icon: '🔥', xp: 300 },
-  'daily_king': { id: 'daily_king', title: 'Постоянство', desc: 'Решить ежедневную задачу', icon: '⚛️', xp: 500 },
-  'marathon_10': { id: 'marathon_10', title: 'Марафонец', desc: 'Решить 10 задач подряд в марафоне', icon: '🏆', xp: 400 },
-  'scholar_100': { id: 'scholar_100', title: 'Эрудит', desc: 'Решить 100 задач суммарно', icon: '📚', xp: 1000 },
-  'streak_5': { id: 'streak_5', title: 'Неудержимый', desc: '5 побед подряд в дуэлях', icon: '🔥', xp: 500 }
+  'first_win': { id: 'first_win', name: 'Боевое крещение', description: 'Первая победа в дуэли', icon: '⚔️', xp: 200 },
+  'solo_10': { id: 'solo_10', name: 'Скороход', description: 'Набрать 10 очков в штурме', icon: '⚡', xp: 150 },
+  'solo_20': { id: 'solo_20', name: 'Гроза примеров', description: 'Набрать 20 очков в штурме', icon: '🔥', xp: 300 },
+  'daily_king': { id: 'daily_king', name: 'Постоянство', description: 'Решить ежедневную задачу', icon: '⚛️', xp: 500 },
+  'marathon_10': { id: 'marathon_10', name: 'Марафонец', description: 'Решить 10 задач подряд в марафоне', icon: '🏆', xp: 400 },
+  'scholar_100': { id: 'scholar_100', name: 'Эрудит', description: 'Решить 100 задач суммарно', icon: '📚', xp: 1000 },
+  'streak_5': { id: 'streak_5', name: 'Неудержимый', description: '5 побед подряд в дуэлях', icon: '🔥', xp: 500 }
 };
 
 // Global activity feed (in-memory for speed, last 20 events)
