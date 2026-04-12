@@ -4222,9 +4222,10 @@ console.log('--- APP.JS LOADED ---');
 
     const iAmP1 = state.myPlayerSlot === 1;
     const myData = iAmP1 ? p1 : p2;
-    const oppData = iAmP1 ? p2 : p1;
+    // ДОБАВЛЕНО: Защитная проверка. Если данные о сопернике пропали (например, он вышел из сети до финала), мы подменяем их объектом-«заглушкой», чтобы не падал интерфейс.
+    const oppData = (iAmP1 ? p2 : p1) || { name: 'Неизвестный', score: 0, ratingDelta: 0, rating: 1500 };
 
-    // Safely resolve rating: use the data from server, or fall back to user state
+    // Теперь чтение свойства .rating полностью безопасно
     const myRating = myData.rating || (state.currentUser ? state.currentUser.glicko_rating : 1500) || 1500;
     const oppRating = oppData.rating || 1500;
 
@@ -5316,6 +5317,99 @@ console.log('--- APP.JS LOADED ---');
       appendCommunityCommentElement(data.comment);
     }
   });
+
+window.showUserProfile = function(username) {
+  // Открываем модальное окно с состоянием загрузки
+  openModal('profile-view');
+  const modal = $('#modal');
+  modal.innerHTML = `
+    <div class="modal-content-wrapper" style="padding-top:40px; text-align:center;">
+      <button class="modal-close" id="modal-close-btn">&times;</button>
+      <div class="loader-spinner" style="margin: 40px auto; width:40px; height:40px; border:3px solid rgba(255,255,255,0.1); border-top:3px solid var(--accent-blue); border-radius:50%; animation: spin 1s linear infinite;"></div>
+      <p>Загрузка профиля ${username}...</p>
+    </div>
+  `;
+  
+  // Добавляем обработчик закрытия окна сразу
+  const addCloseListener = () => {
+    const closeBtn = $('#modal-close-btn');
+    if (closeBtn) closeBtn.addEventListener('click', () => $('#modal-overlay').classList.remove('active'));
+  };
+  addCloseListener();
+
+  // Запрашиваем данные пользователя с сервера
+  socket.emit('get-user', { username }, (result) => {
+    if (!result || !result.ok) {
+      modal.innerHTML = `
+        <div class="modal-content-wrapper" style="text-align:center; padding:40px;">
+          <button class="modal-close" id="modal-close-btn">&times;</button>
+          <p>Не удалось профиль игрока ${username}. Возможно, он не существует.</p>
+        </div>
+      `;
+      addCloseListener();
+      return;
+    }
+    
+    const user = result.user;
+    const winRate = user.totalGames > 0 ? Math.round((user.wins / user.totalGames) * 100) : 0;
+    const rating = Math.round(user.glicko_rating || 1500);
+    const userRank = getRank(rating);
+    const levelInfo = getLevelInfo(user.xp || 0);
+
+    // Отрисовываем профиль найденного пользователя
+    modal.innerHTML = `
+      <div class="modal-content-wrapper" style="padding-top:20px; max-width:800px; width:100%;">
+        <button class="modal-close" id="modal-close-btn">&times;</button>
+        
+        <div class="profile-header" style="margin-top:20px;">
+          ${renderUserAvatar(user, 'lg')}
+          <div class="profile-info">
+            <h1 style="color:var(--text-primary); margin-bottom:8px;">${user.username} <span class="rank-icon-small">${userRank.icon}</span></h1>
+            <p class="academic-level rank-text-${userRank.class}" style="margin-bottom:16px;">${userRank.title}</p>
+            
+            <div class="xp-progress-container" style="max-width:300px;">
+              <div class="xp-label" style="font-size:0.85rem;">
+                <span>Уровень ${levelInfo.level}</span>
+                <span>${Math.round(user.xp || 0)} XP</span>
+              </div>
+              <div class="xp-bar-bg" style="height:6px;">
+                <div class="xp-bar-fill" style="width: ${levelInfo.progress}%"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="stats-grid" style="margin-top:30px;">
+          <div class="stat-card stat-card-rating">
+            <div class="stat-value" style="color: var(--accent-blue)">${rating}</div>
+            <div class="stat-label">🏆 Рейтинг Glicko-2</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">${user.wins}</div>
+            <div class="stat-label">Побед</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">${user.losses}</div>
+            <div class="stat-label">Поражений</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">${user.totalGames}</div>
+            <div class="stat-label">Всего игр</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">${winRate}%</div>
+            <div class="stat-label">Винрейт</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">${user.totalSolved || 0}</div>
+            <div class="stat-label">Решено задач</div>
+          </div>
+        </div>
+      </div>
+    `;
+    addCloseListener();
+  });
+};
 
   const origOpenModal = openModal;
   window.openModal = function(type) {
