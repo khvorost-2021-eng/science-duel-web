@@ -3274,7 +3274,7 @@ console.log('--- APP.JS LOADED ---');
     const p2 = data.player2;
     const iAmP1 = state.myPlayerSlot === 1;
     const myData = iAmP1 ? p1 : p2;
-    const oppData = iAmP1 ? p2 : p1;
+    const oppData = (iAmP1 ? p2 : p1) || { name: 'Неизвестный', score: 0, ratingDelta: 0, rating: 1500 };
 
     const myRating = myData.rating || (state.currentUser ? state.currentUser.glicko_rating : 1500) || 1500;
     const oppRating = oppData.rating || 1500;
@@ -3379,6 +3379,105 @@ console.log('--- APP.JS LOADED ---');
   }
 
   // ──── Profile ────
+  function generateProfileHtml(user) {
+    const initial = user.username.charAt(0).toUpperCase();
+    const winRate = user.totalGames > 0 ? Math.round((user.wins / user.totalGames) * 100) : 0;
+    const rating = Math.round(user.glicko_rating || 1500);
+    const userRank = getRank(rating);
+    const levelInfo = getLevelInfo(user.xp || 0);
+
+    return `
+      <div class="profile-header">
+        ${renderUserAvatar(user, 'lg')}
+        <div class="profile-info">
+          <h1>${user.username} <span class="rank-icon-small">${userRank.icon}</span></h1>
+          <p class="academic-level rank-text-${userRank.class}">${userRank.title}</p>
+          
+          <div class="xp-progress-container">
+            <div class="xp-label">
+              <span>Уровень ${levelInfo.level}</span>
+              <span>${Math.round(user.xp || 0)} / ${levelInfo.nextLevelXp} XP</span>
+            </div>
+            <div class="xp-bar-bg">
+              <div class="xp-bar-fill" style="width: ${levelInfo.progress}%"></div>
+            </div>
+            <p style="font-size:0.75rem; color:var(--text-muted); margin-top:4px">Еще ${Math.round(levelInfo.remaining)} XP до нового уровня</p>
+          </div>
+        </div>
+      </div>
+      <div class="stats-grid">
+        <div class="stat-card stat-card-rating">
+          <div class="stat-value" style="color: var(--accent-blue)">${rating}</div>
+          <div class="stat-label">🏆 Рейтинг Glicko-2</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">${user.wins}</div>
+          <div class="stat-label">Побед</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">${user.losses}</div>
+          <div class="stat-label">Поражений</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">${user.totalGames}</div>
+          <div class="stat-label">Всего игр</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">${winRate}%</div>
+          <div class="stat-label">Винрейт</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">${user.totalSolved || 0}</div>
+          <div class="stat-label">Решено задач</div>
+        </div>
+      </div>
+
+      <div class="best-results-section">
+         <h2 style="margin-bottom:16px; font-size:1.4rem">🌟 Лучший результат</h2>
+         <div class="records-grid">
+            <div class="record-item">
+               <div class="record-icon">⚔️</div>
+               <div class="record-info">
+                 <div class="record-value">${user.bestResult || 0}</div>
+                 <div class="record-label">Дуэль</div>
+               </div>
+            </div>
+         </div>
+      </div>
+
+      <div class="solo-records-section" style="margin-top:24px; margin-bottom:40px">
+        <h2 style="margin-bottom:16px; font-size:1.4rem">⚡ Рекорды Штурма</h2>
+        <div class="records-grid-solo">
+          ${(user.soloRecords && user.soloRecords.length > 0) 
+             ? user.soloRecords.map(r => `
+                <div class="solo-record-card">
+                  <div class="solo-record-mode-name">${difficultyNames[r.mode] || r.mode}</div>
+                  <div class="solo-record-mode-value">${r.score}</div>
+                </div>
+              `).join('')
+             : `<p style="color:var(--text-secondary); font-size:0.9rem">Рекордов пока нет. Попробуйте режим «Штурм»!</p>`
+          }
+        </div>
+      </div>
+
+      <div class="achievements-section" id="achievements-section">
+        <h2 style="margin-bottom:16px; font-size:1.4rem">🏆 Достижения</h2>
+        <div id="achievements-grid" class="achievements-grid">
+          <div class="skeleton" style="height:100px"></div>
+          <div class="skeleton" style="height:100px"></div>
+          <div class="skeleton" style="height:100px"></div>
+        </div>
+      </div>
+
+      <div class="match-history-section" id="match-history-section">
+        <h2 style="margin-bottom:16px; font-size:1.4rem">📜 История матчей</h2>
+        <div id="match-history-list" class="match-history-list">
+          <div style="text-align:center;padding:24px;color:var(--text-muted)">Загрузка...</div>
+        </div>
+      </div>
+    `;
+  }
+
   function renderProfile() {
     if (!state.currentUser) { navigateTo('home'); return; }
     
@@ -3388,104 +3487,9 @@ console.log('--- APP.JS LOADED ---');
       state.currentUser = user;
       
       const el = $('#screen-profile');
-      const initial = user.username.charAt(0).toUpperCase();
-      const winRate = user.totalGames > 0 ? Math.round((user.wins / user.totalGames) * 100) : 0;
-  
-      const rating = Math.round(user.glicko_rating || 1500);
-      const userRank = getRank(rating);
-      const levelInfo = getLevelInfo(user.xp || 0);
-
       el.innerHTML = `
         <div class="profile-container">
-          <div class="profile-header">
-            ${renderUserAvatar(user, 'lg')}
-            <div class="profile-info">
-              <h1>${user.username} <span class="rank-icon-small">${userRank.icon}</span></h1>
-              <p class="academic-level rank-text-${userRank.class}">${userRank.title}</p>
-              
-              <div class="xp-progress-container">
-                <div class="xp-label">
-                  <span>Уровень ${levelInfo.level}</span>
-                  <span>${Math.round(user.xp || 0)} / ${levelInfo.nextLevelXp} XP</span>
-                </div>
-                <div class="xp-bar-bg">
-                  <div class="xp-bar-fill" style="width: ${levelInfo.progress}%"></div>
-                </div>
-                <p style="font-size:0.75rem; color:var(--text-muted); margin-top:4px">Еще ${Math.round(levelInfo.remaining)} XP до нового уровня</p>
-              </div>
-            </div>
-          </div>
-          <div class="stats-grid">
-            <div class="stat-card stat-card-rating">
-              <div class="stat-value" style="color: var(--accent-blue)">${rating}</div>
-              <div class="stat-label">🏆 Рейтинг Glicko-2</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-value">${user.wins}</div>
-              <div class="stat-label">Побед</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-value">${user.losses}</div>
-              <div class="stat-label">Поражений</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-value">${user.totalGames}</div>
-              <div class="stat-label">Всего игр</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-value">${winRate}%</div>
-              <div class="stat-label">Винрейт</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-value">${user.totalSolved || 0}</div>
-              <div class="stat-label">Решено задач</div>
-            </div>
-          </div>
-
-          <div class="best-results-section">
-             <h2 style="margin-bottom:16px; font-size:1.4rem">🌟 Лучший результат</h2>
-             <div class="records-grid">
-                <div class="record-item">
-                   <div class="record-icon">⚔️</div>
-                   <div class="record-info">
-                     <div class="record-value">${user.bestResult || 0}</div>
-                     <div class="record-label">Дуэль</div>
-                   </div>
-                </div>
-             </div>
-          </div>
-
-          <div class="solo-records-section" style="margin-top:24px; margin-bottom:40px">
-            <h2 style="margin-bottom:16px; font-size:1.4rem">⚡ Рекорды Штурма</h2>
-            <div class="records-grid-solo">
-              ${(user.soloRecords && user.soloRecords.length > 0) 
-                 ? user.soloRecords.map(r => `
-                    <div class="solo-record-card">
-                      <div class="solo-record-mode-name">${difficultyNames[r.mode] || r.mode}</div>
-                      <div class="solo-record-mode-value">${r.score}</div>
-                    </div>
-                  `).join('')
-                 : `<p style="color:var(--text-secondary); font-size:0.9rem">Рекордов пока нет. Попробуйте режим «Штурм»!</p>`
-              }
-            </div>
-          </div>
-
-          <div class="achievements-section" id="achievements-section">
-            <h2 style="margin-bottom:16px; font-size:1.4rem">🏆 Достижения</h2>
-            <div id="achievements-grid" class="achievements-grid">
-              <div class="skeleton" style="height:100px"></div>
-              <div class="skeleton" style="height:100px"></div>
-              <div class="skeleton" style="height:100px"></div>
-            </div>
-          </div>
-
-          <div class="match-history-section" id="match-history-section">
-            <h2 style="margin-bottom:16px; font-size:1.4rem">📜 История матчей</h2>
-            <div id="match-history-list" class="match-history-list">
-              <div style="text-align:center;padding:24px;color:var(--text-muted)">Загрузка...</div>
-            </div>
-          </div>
-
+          ${generateProfileHtml(user)}
           <div style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin-top:32px">
             <button class="btn btn-primary btn-lg" id="profile-duel-btn">🏠 Создать комнату</button>
             <button class="btn btn-secondary btn-lg" id="profile-search-btn">🔍 Найти соперника</button>
@@ -3515,19 +3519,19 @@ console.log('--- APP.JS LOADED ---');
 
   function loadAchievements(username) {
     socket.emit('get-user-achievements', { username }, (res) => {
-      const grid = $('#achievements-grid');
-      if (!grid) return;
-      if (!res || !res.ok) {
-        grid.innerHTML = '<p>Не удалось загрузить достижения</p>';
-        return;
-      }
-      grid.innerHTML = res.achievements.map(a => `
-        <div class="achievement-card ${a.unlocked ? 'unlocked' : 'locked'}">
-          <div class="achievement-icon">${a.icon || '🏆'}</div>
-          <div class="achievement-name">${a.name}</div>
-          <div class="achievement-desc">${a.description}</div>
-        </div>
-      `).join('');
+      $$('#achievements-grid').forEach(grid => {
+        if (!res || !res.ok) {
+          grid.innerHTML = '<p>Не удалось загрузить достижения</p>';
+          return;
+        }
+        grid.innerHTML = res.achievements.map(a => `
+          <div class="achievement-card ${a.unlocked ? 'unlocked' : 'locked'}">
+            <div class="achievement-icon">${a.icon || '🏆'}</div>
+            <div class="achievement-name">${a.name}</div>
+            <div class="achievement-desc">${a.description}</div>
+          </div>
+        `).join('');
+      });
     });
   }
 
@@ -5330,84 +5334,36 @@ window.showUserProfile = function(username) {
     </div>
   `;
   
-  // Добавляем обработчик закрытия окна сразу
   const addCloseListener = () => {
     const closeBtn = $('#modal-close-btn');
     if (closeBtn) closeBtn.addEventListener('click', () => $('#modal-overlay').classList.remove('active'));
   };
   addCloseListener();
 
-  // Запрашиваем данные пользователя с сервера
   socket.emit('get-user', { username }, (result) => {
     if (!result || !result.ok) {
       modal.innerHTML = `
         <div class="modal-content-wrapper" style="text-align:center; padding:40px;">
           <button class="modal-close" id="modal-close-btn">&times;</button>
-          <p>Не удалось профиль игрока ${username}. Возможно, он не существует.</p>
+          <p>Не удалось загрузить профиль игрока ${username}. Возможно, он не существует.</p>
         </div>
       `;
       addCloseListener();
       return;
     }
     
-    const user = result.user;
-    const winRate = user.totalGames > 0 ? Math.round((user.wins / user.totalGames) * 100) : 0;
-    const rating = Math.round(user.glicko_rating || 1500);
-    const userRank = getRank(rating);
-    const levelInfo = getLevelInfo(user.xp || 0);
-
-    // Отрисовываем профиль найденного пользователя
+    // Отрисовываем профиль найденного пользователя с помощью переиспользованной функции
     modal.innerHTML = `
-      <div class="modal-content-wrapper" style="padding-top:20px; max-width:800px; width:100%;">
-        <button class="modal-close" id="modal-close-btn">&times;</button>
-        
-        <div class="profile-header" style="margin-top:20px;">
-          ${renderUserAvatar(user, 'lg')}
-          <div class="profile-info">
-            <h1 style="color:var(--text-primary); margin-bottom:8px;">${user.username} <span class="rank-icon-small">${userRank.icon}</span></h1>
-            <p class="academic-level rank-text-${userRank.class}" style="margin-bottom:16px;">${userRank.title}</p>
-            
-            <div class="xp-progress-container" style="max-width:300px;">
-              <div class="xp-label" style="font-size:0.85rem;">
-                <span>Уровень ${levelInfo.level}</span>
-                <span>${Math.round(user.xp || 0)} XP</span>
-              </div>
-              <div class="xp-bar-bg" style="height:6px;">
-                <div class="xp-bar-fill" style="width: ${levelInfo.progress}%"></div>
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        <div class="stats-grid" style="margin-top:30px;">
-          <div class="stat-card stat-card-rating">
-            <div class="stat-value" style="color: var(--accent-blue)">${rating}</div>
-            <div class="stat-label">🏆 Рейтинг Glicko-2</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-value">${user.wins}</div>
-            <div class="stat-label">Побед</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-value">${user.losses}</div>
-            <div class="stat-label">Поражений</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-value">${user.totalGames}</div>
-            <div class="stat-label">Всего игр</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-value">${winRate}%</div>
-            <div class="stat-label">Винрейт</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-value">${user.totalSolved || 0}</div>
-            <div class="stat-label">Решено задач</div>
-          </div>
-        </div>
+      <div class="modal-content-wrapper profile-container" style="padding:20px 40px; max-width:800px; width:100%; max-height: 90vh; overflow-y: auto; background: var(--bg-glass); backdrop-filter: blur(20px); border: 1px solid var(--border-glass);">
+        <button class="modal-close" id="modal-close-btn" style="position: absolute; right: 20px; top: 20px;">&times;</button>
+        ${generateProfileHtml(result.user)}
       </div>
     `;
     addCloseListener();
+    
+    // Запускаем асинхронную загрузку достижений и истории матчей
+    loadMatchHistory(result.user.username);
+    loadAchievements(result.user.username);
   });
 };
 
