@@ -26,6 +26,8 @@ async function initDB() {
         losses INTEGER DEFAULT 0,
         draws INTEGER DEFAULT 0,
         totalGames INTEGER DEFAULT 0,
+        duelGames INTEGER DEFAULT 0,
+        soloGames INTEGER DEFAULT 0,
         totalSolved INTEGER DEFAULT 0,
         bestResult INTEGER DEFAULT 0,
         bestSolo INTEGER DEFAULT 0,
@@ -53,6 +55,9 @@ async function initDB() {
     // Проверка/добавление новых колонок (миграции)
     const columns = [
       'bestSolo INTEGER DEFAULT 0',
+      'bestResult INTEGER DEFAULT 0',
+      'duelGames INTEGER DEFAULT 0',
+      'soloGames INTEGER DEFAULT 0',
       'glicko_rating REAL DEFAULT 1500',
       'glicko_rd REAL DEFAULT 350',
       'glicko_vol REAL DEFAULT 0.06'

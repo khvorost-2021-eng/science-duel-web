@@ -299,18 +299,25 @@ async function endGame(roomCode) {
   if (p1Db) {
     const isWin = !isSolo && p1.score > p2.score;
     const isLoss = !isSolo && p1.score < p2.score;
-    
+    // Duel mode string recorded into match_results
+    const matchMode = isSolo
+      ? `solo_${room.difficulty || 'easy'}`
+      : (room.difficulty || 'easy');
+
     const statsUpdate = {
-      totalSolved: (p1Db.totalSolved || 0) + (p1 ? p1.score : 0),
-      totalGames: (p1Db.totalGames || 0) + 1,
-      wins: (p1Db.wins || 0) + (isWin ? 1 : 0),
-      losses: (p1Db.losses || 0) + (isLoss ? 1 : 0),
+      totalSolved: (p1Db.totalSolved || 0) + p1.score,
+      totalGames:  (p1Db.totalGames  || 0) + 1,
       glicko_rating: (p1Db.glicko_rating || 1500) + p1RatingDelta,
-      bestResult: Math.max(p1Db.bestResult || 0, p1.score)
     };
-    
+
     if (isSolo) {
-      statsUpdate.bestSolo = Math.max(p1Db.bestSolo || 0, p1.score);
+      statsUpdate.soloGames = (p1Db.soloGames || 0) + 1;
+      statsUpdate.bestSolo  = Math.max(p1Db.bestSolo  || 0, p1.score);
+    } else {
+      statsUpdate.duelGames = (p1Db.duelGames || 0) + 1;
+      statsUpdate.wins      = (p1Db.wins   || 0) + (isWin  ? 1 : 0);
+      statsUpdate.losses    = (p1Db.losses || 0) + (isLoss ? 1 : 0);
+      statsUpdate.bestResult = Math.max(p1Db.bestResult || 0, p1.score);
     }
 
     updatePromises.push(db.updateUserStats(p1.name, statsUpdate));
@@ -318,26 +325,28 @@ async function endGame(roomCode) {
       username: p1.name,
       score: p1.score,
       is_win: isWin,
-      mode: isSolo ? (room.difficulty || 'solo') : (room.difficulty || 'duel')
+      mode: matchMode
     }));
   }
 
   if (p2Db && !isSolo) {
     const isWin = p2.score > p1.score;
     const isLoss = p2.score < p1.score;
+    const matchMode = room.difficulty || 'easy';
     updatePromises.push(db.updateUserStats(p2.name, {
-      totalSolved: (p2Db.totalSolved || 0) + p2.score,
-      totalGames: (p2Db.totalGames || 0) + 1,
-      wins: (p2Db.wins || 0) + (isWin ? 1 : 0),
-      losses: (p2Db.losses || 0) + (isLoss ? 1 : 0),
+      totalSolved:   (p2Db.totalSolved  || 0) + p2.score,
+      totalGames:    (p2Db.totalGames   || 0) + 1,
+      duelGames:     (p2Db.duelGames    || 0) + 1,
+      wins:          (p2Db.wins         || 0) + (isWin  ? 1 : 0),
+      losses:        (p2Db.losses       || 0) + (isLoss ? 1 : 0),
       glicko_rating: (p2Db.glicko_rating || 1500) + p2RatingDelta,
-      bestResult: Math.max(p2Db.bestResult || 0, p2.score)
+      bestResult:    Math.max(p2Db.bestResult || 0, p2.score)
     }));
     updatePromises.push(db.recordMatchResult({
       username: p2.name,
       score: p2.score,
       is_win: isWin,
-      mode: room.difficulty || 'duel'
+      mode: matchMode
     }));
   }
 

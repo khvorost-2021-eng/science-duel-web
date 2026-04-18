@@ -3735,4 +3735,15 @@ input:checked + .slider:before {
   margin-top: 2px;
 }
 
+.rec-val-big {
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: var(--accent-blue);
+}
+
+.match-solo {
+  border-left: 3px solid var(--accent-purple);
+}
+
+
 

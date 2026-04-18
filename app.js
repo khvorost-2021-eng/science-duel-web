@@ -2418,7 +2418,7 @@
   // ──── Profile ────
   function renderProfile() {
     if (!state.currentUser) { navigateTo('home'); return; }
-    
+
     socket.emit('get-user', { username: state.currentUser.username }, (result) => {
       if (!result || !result.ok) { navigateTo('home'); return; }
       const user = result.user;
@@ -2430,14 +2430,29 @@
         if (!el) return;
 
         const initial = user.username.charAt(0).toUpperCase();
-        const winRate = user.totalGames > 0 ? Math.round((user.wins / user.totalGames) * 100) : 0;
+        // Winrate = wins / duelGames only (solo has no winner)
+        const duelGames = user.duelgames || user.duelGames || 0;
+        const soloGames = user.sologames || user.soloGames || 0;
+        const totalGames = user.totalgames || user.totalGames || 0;
+        const wins = user.wins || 0;
+        const losses = user.losses || 0;
+        const winRate = duelGames > 0 ? Math.round((wins / duelGames) * 100) : 0;
         const rating = Math.round(user.glicko_rating || 1500);
         const userRank = getRank(rating);
 
+        // Helper: best score for a mode in match_results
         const findBest = (mode) => {
           const r = records.find(rec => rec.mode === mode);
           return r ? r.best_score : 0;
         };
+
+        // Best duel score = user.bestResult updated by server
+        const bestDuel = user.bestresult || user.bestResult || 0;
+
+        // Best solo by difficulty (stored as 'solo_easy', 'solo_medium', 'solo_hard')
+        const bestSoloEasy   = findBest('solo_easy');
+        const bestSoloMedium = findBest('solo_medium');
+        const bestSoloHard   = findBest('solo_hard');
 
         el.innerHTML = `
           <div class="profile-container">
@@ -2448,67 +2463,68 @@
                 <p class="academic-level rank-text-${userRank.class}">${userRank.title}</p>
               </div>
             </div>
+
             <div class="stats-grid">
               <div class="stat-card stat-card-rating">
                 <div class="stat-value" style="color: var(--accent-blue)">${rating}</div>
-                <div class="stat-label">\ud83c\udfc6 \u0420\u0435\u0439\u0442\u0438\u043d\u0433</div>
+                <div class="stat-label">🏆 Рейтинг</div>
               </div>
               <div class="stat-card">
-                <div class="stat-value">${user.wins || 0}</div>
-                <div class="stat-label">\u041f\u043e\u0431\u0435\u0434</div>
+                <div class="stat-value">${wins}</div>
+                <div class="stat-label">Победы</div>
               </div>
               <div class="stat-card">
-                <div class="stat-value">${user.losses || 0}</div>
-                <div class="stat-label">\u041f\u043e\u0440\u0430\u0436\u0435\u043d\u0438\u0439</div>
+                <div class="stat-value">${losses}</div>
+                <div class="stat-label">Поражения</div>
               </div>
               <div class="stat-card">
-                <div class="stat-value">${user.totalGames || 0}</div>
-                <div class="stat-label">\u0412\u0441\u0435\u0433\u043e \u0438\u0433\u0440</div>
+                <div class="stat-value">${duelGames}</div>
+                <div class="stat-label">Дуэлей сыграно</div>
               </div>
               <div class="stat-card">
                 <div class="stat-value">${winRate}%</div>
-                <div class="stat-label">\u0412\u0438\u043d\u0440\u0435\u0439\u0442</div>
+                <div class="stat-label">Винрейт (дуэли)</div>
               </div>
               <div class="stat-card">
                 <div class="stat-value">${user.totalSolved || 0}</div>
-                <div class="stat-label">\u0420\u0435\u0448\u0435\u043d\u043e \u0437\u0430\u0434\u0430\u0447</div>
+                <div class="stat-label">Решено задач</div>
               </div>
             </div>
 
             <div class="best-results-section">
-              <h2 style="margin-bottom:16px; font-size:1.4rem">\ud83c\udf1f \u041b\u0438\u0447\u043d\u044b\u0435 \u0440\u0435\u043a\u043e\u0440\u0434\u044b</h2>
+              <h2 style="margin-bottom:16px; font-size:1.4rem">🌟 Личные рекорды</h2>
               <div class="records-grid-v2">
                 <div class="record-item-v2">
-                  <span class="rec-label">\u0410\u0440\u0438\u0444\u043c\u0435\u0442\u0438\u043a\u0430</span>
-                  <span class="rec-val">\u2694\ufe0f ${findBest('easy') || findBest('basic')} | \u26a1 ${findBest('solo')}</span>
+                  <span class="rec-label">⚔️ Лучшая дуэль</span>
+                  <span class="rec-val rec-val-big">${bestDuel}</span>
                 </div>
                 <div class="record-item-v2">
-                  <span class="rec-label">\u0410\u043b\u0433\u0435\u0431\u0440\u0430</span>
-                  <span class="rec-val">\u2694\ufe0f ${findBest('algebra')}</span>
+                  <span class="rec-label">⚡ Штурм — Лёгкий</span>
+                  <span class="rec-val rec-val-big">${bestSoloEasy}</span>
                 </div>
                 <div class="record-item-v2">
-                  <span class="rec-label">\u0413\u0435\u043e\u043c\u0435\u0442\u0440\u0438\u044f</span>
-                  <span class="rec-val">\u2694\ufe0f ${findBest('geometry')}</span>
+                  <span class="rec-label">⚡ Штурм — Средний</span>
+                  <span class="rec-val rec-val-big">${bestSoloMedium}</span>
                 </div>
                 <div class="record-item-v2">
-                  <span class="rec-label">\u041b\u043e\u0433\u0438\u043a\u0430</span>
-                  <span class="rec-val">\u2694\ufe0f ${findBest('logic')}</span>
+                  <span class="rec-label">⚡ Штурм — Сложный</span>
+                  <span class="rec-val rec-val-big">${bestSoloHard}</span>
                 </div>
               </div>
             </div>
 
             <div class="match-history-section" id="match-history-section">
-              <h2 style="margin-bottom:16px; font-size:1.4rem">\ud83d\udcdc \u0418\u0441\u0442\u043e\u0440\u0438\u044f \u043c\u0430\u0442\u0447\u0435\u0439</h2>
+              <h2 style="margin-bottom:16px; font-size:1.4rem">📜 История матчей</h2>
               <div id="match-history-list" class="match-history-list">
-                <div style="text-align:center;padding:24px;color:var(--text-muted)">\u0417\u0430\u0433\u0440\u0443\u0437\u043a\u0430...</div>
+                <div style="text-align:center;padding:24px;color:var(--text-muted)">Загрузка...</div>
               </div>
             </div>
 
             <div style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin-top:32px">
-              <button class="btn btn-primary btn-lg" id="profile-duel-btn">\ud83c\udfe0 \u0421\u043e\u0437\u0434\u0430\u0442\u044c \u043a\u043e\u043c\u043d\u0430\u0442\u0443</button>
-              <button class="btn btn-secondary btn-lg" id="profile-search-btn">\ud83d\udd0d \u041d\u0430\u0439\u0442\u0438 \u0441\u043e\u043f\u0435\u0440\u043d\u0438\u043a\u0430</button>
-              <button class="btn btn-accent btn-lg" id="profile-solo-btn">\u26a1 \u0428\u0442\u0443\u0440\u043c</button>
-              <button class="btn btn-ghost btn-lg" id="profile-back-btn">\u2190 \u041d\u0430 \u0433\u043b\u0430\u0432\u043d\u0443\u044e</button>
+              <button class="btn btn-primary btn-lg" id="profile-duel-btn">🏠 Создать комнату</button>
+              <button class="btn btn-secondary btn-lg" id="profile-search-btn">🔍 Найти соперника</button>
+              <button class="btn btn-accent btn-lg" id="profile-solo-btn">⚡ Штурм</button>
+              <button class="btn btn-ghost btn-lg" id="profile-back-btn">← На главную</button>
             </div>
           </div>
         `;
@@ -2522,8 +2538,8 @@
     });
   }
 
-  function loadMatchHistory(username) {
 
+  function loadMatchHistory(username) {
     socket.emit('get-match-history', { username, limit: 10 }, (result) => {
       const listEl = $('#match-history-list');
       if (!listEl) return;
@@ -2536,12 +2552,13 @@
       listEl.innerHTML = result.matches.map(m => {
         const ts = Number(m.timestamp);
         const date = isNaN(ts) ? new Date(m.timestamp) : new Date(ts);
-        const timeStr = isNaN(date.getTime()) 
-          ? 'Дата неизвестна' 
+        const timeStr = isNaN(date.getTime())
+          ? 'Дата неизвестна'
           : date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' }) + ' ' + date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
-        const modeLabel = m.mode === 'solo' ? '⚡ Штурм' : '⚔️ Дуэль';
-        const resultClass = m.is_win ? 'match-win' : 'match-loss';
-        const resultText = m.is_win ? 'Победа' : 'Поражение';
+        const isSoloMode = String(m.mode).startsWith('solo_');
+        const modeLabel = isSoloMode ? ('⚡ Штурм (' + m.mode.replace('solo_','') + ')') : ('⚔️ Дуэль (' + m.mode + ')');
+        const resultClass = m.is_win ? 'match-win' : (isSoloMode ? 'match-solo' : 'match-loss');
+        const resultText = isSoloMode ? 'Штурм' : (m.is_win ? 'Победа' : 'Поражение');
 
         return `
           <div class="match-history-item ${resultClass}">
@@ -2556,6 +2573,8 @@
   }
 
   // ──── Player Search Modal ────
+
+
   function openPlayerSearch() {
     // Remove any existing modal
     const existing = document.getElementById('player-search-modal');
