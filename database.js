@@ -153,6 +153,16 @@ async function getMatchHistory(username, limit = 10) {
    return res.rows;
 }
 
+async function getBestResultsPerMode(username) {
+  const res = await pool.query(`
+    SELECT mode, MAX(score)::int as best_score 
+    FROM match_results 
+    WHERE LOWER(username) = LOWER($1) 
+    GROUP BY mode
+  `, [username]);
+  return res.rows;
+}
+
 module.exports = {
   pool,
   initDB,
@@ -162,5 +172,6 @@ module.exports = {
   getLeaderboard,
   getFilteredLeaderboard,
   recordMatchResult,
-  getMatchHistory
+  getMatchHistory,
+  getBestResultsPerMode
 };

@@ -296,6 +296,7 @@
         <button class="btn btn-ghost" id="nav-community-btn">🔵 Сообщество</button>
         <button class="btn btn-ghost" id="nav-rules-btn">📘 Правила</button>
         <button class="btn btn-ghost" id="nav-leaderboard-btn">🏆 Таблица лидеров</button>
+        <button class="btn btn-secondary" id="nav-search-btn" title="Найти соперника">🔍 Поиск игроков</button>
         <div class="navbar-user" id="nav-profile-btn" style="cursor:pointer">
           <div class="user-avatar">${initial}</div>
           <span>${state.currentUser.username}</span>
@@ -309,6 +310,7 @@
       $('#nav-community-btn').addEventListener('click', () => window.open('https://t.me/sciduel', '_blank'));
       $('#nav-rules-btn').addEventListener('click', () => navigateTo('rules'));
       $('#nav-leaderboard-btn').addEventListener('click', () => { renderLeaderboard(); navigateTo('leaderboard'); });
+      $('#nav-search-btn').addEventListener('click', () => { renderMatchmaking(); navigateTo('matchmaking'); });
       $('#nav-profile-btn').addEventListener('click', () => {
         renderProfile();
         navigateTo('profile');
@@ -327,6 +329,7 @@
         <button class="btn btn-ghost" id="nav-community-btn">🔵 Сообщество</button>
         <button class="btn btn-ghost" id="nav-rules-btn">📘 Правила</button>
         <button class="btn btn-ghost" id="nav-leaderboard-btn">🏆 Таблица лидеров</button>
+        <button class="btn btn-secondary" id="nav-search-btn" title="Найти соперника">🔍 Поиск игроков</button>
         <button class="btn btn-secondary" id="nav-login-btn">Войти</button>
         <button class="btn btn-primary" id="nav-register-btn">Регистрация</button>
       `;
@@ -337,6 +340,7 @@
       $('#nav-community-btn').addEventListener('click', () => window.open('https://t.me/sciduel', '_blank'));
       $('#nav-rules-btn').addEventListener('click', () => navigateTo('rules'));
       $('#nav-leaderboard-btn').addEventListener('click', () => { renderLeaderboard(); navigateTo('leaderboard'); });
+      $('#nav-search-btn').addEventListener('click', () => { renderMatchmaking(); navigateTo('matchmaking'); });
       $('#nav-login-btn').addEventListener('click', () => openModal('login'));
       $('#nav-register-btn').addEventListener('click', () => openModal('register'));
     }
@@ -2420,98 +2424,99 @@
       const user = result.user;
       state.currentUser = user;
       
-      const el = $('#screen-profile');
-      const initial = user.username.charAt(0).toUpperCase();
-      const winRate = user.totalGames > 0 ? Math.round((user.wins / user.totalGames) * 100) : 0;
-  
-      const rating = Math.round(user.glicko_rating || 1500);
-      const userRank = getRank(rating);
+      socket.emit('get-best-results', { username: user.username }, (resBest) => {
+        const records = resBest.ok ? resBest.records : [];
+        const el = $('#screen-profile');
+        const initial = user.username.charAt(0).toUpperCase();
+        const winRate = user.totalGames > 0 ? Math.round((user.wins / user.totalGames) * 100) : 0;
+    
+        const rating = Math.round(user.glicko_rating || 1500);
+        const userRank = getRank(rating);
 
-      el.innerHTML = `
-        <div class="profile-container">
-          <div class="profile-header">
-            <div class="profile-avatar ${userRank.class}">${initial}</div>
-            <div class="profile-info">
-              <h1>${user.username} <span class="rank-icon-small">${userRank.icon}</span></h1>
-              <p class="academic-level rank-text-${userRank.class}">${userRank.title}</p>
+        const findBest = (mode) => {
+          const r = records.find(rec => rec.mode === mode);
+          return r ? r.best_score : 0;
+        };
+
+        el.innerHTML = `
+          <div class="profile-container">
+            <div class="profile-header">
+              <div class="profile-avatar ${userRank.class}">${initial}</div>
+              <div class="profile-info">
+                <h1>${user.username} <span class="rank-icon-small">${userRank.icon}</span></h1>
+                <p class="academic-level rank-text-${userRank.class}">${userRank.title}</p>
+              </div>
+            </div>
+            <div class="stats-grid">
+              <div class="stat-card stat-card-rating">
+                <div class="stat-value" style="color: var(--accent-blue)">${rating}</div>
+                <div class="stat-label">🏆 Рейтинг</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-value">${user.wins}</div>
+                <div class="stat-label">Побед</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-value">${user.losses}</div>
+                <div class="stat-label">Поражений</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-value">${user.totalGames}</div>
+                <div class="stat-label">Всего игр</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-value">${winRate}%</div>
+                <div class="stat-label">Винрейт</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-value">${user.totalSolved || 0}</div>
+                <div class="stat-label">Решено задач</div>
+              </div>
+            </div>
+
+            <div class="best-results-section">
+               <h2 style="margin-bottom:16px; font-size:1.4rem">🌟 Личные рекорды</h2>
+               <div class="records-grid-v2">
+                  <div class="record-item-v2">
+                     <span class="rec-label">Арифметика:</span>
+                     <span class="rec-val">⚔️ ${findBest('easy')} | ⚡ ${findBest('solo') || findBest('basic')}</span>
+                  </div>
+                  <div class="record-item-v2">
+                     <span class="rec-label">Алгебра:</span>
+                     <span class="rec-val">⚔️ ${findBest('algebra')}</span>
+                  </div>
+                  <div class="record-item-v2">
+                     <span class="rec-label">Геометрия:</span>
+                     <span class="rec-val">⚔️ ${findBest('geometry')}</span>
+                  </div>
+                  <div class="record-item-v2">
+                     <span class="rec-label">Логика:</span>
+                     <span class="rec-val">⚔️ ${findBest('logic')}</span>
+                  </div>
+               </div>
+            </div>
+
+            <div class="match-history-section" id="match-history-section">
+              <h2 style="margin-bottom:16px; font-size:1.4rem">📜 История матчей</h2>
+              <div id="match-history-list" class="match-history-list">
+                <div style="text-align:center;padding:24px;color:var(--text-muted)">Загрузка...</div>
+              </div>
+            </div>
+
+            <div style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin-top:32px">
+              <button class="btn btn-primary btn-lg" id="profile-duel-btn">🏠 Создать комнату</button>
+              <button class="btn btn-secondary btn-lg" id="profile-search-btn">🔍 Найти соперника</button>
+              <button class="btn btn-accent btn-lg" id="profile-solo-btn">⚡ Штурм</button>
+              <button class="btn btn-ghost btn-lg" id="profile-back-btn">← На главную</button>
             </div>
           </div>
-          <div class="stats-grid">
-            <div class="stat-card stat-card-rating">
-              <div class="stat-value" style="color: var(--accent-blue)">${rating}</div>
-              <div class="stat-label">🏆 Рейтинг</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-value">${user.wins}</div>
-              <div class="stat-label">Побед</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-value">${user.losses}</div>
-              <div class="stat-label">Поражений</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-value">${user.totalGames}</div>
-              <div class="stat-label">Всего игр</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-value">${winRate}%</div>
-              <div class="stat-label">Винрейт</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-value">${user.totalSolved || 0}</div>
-              <div class="stat-label">Решено задач</div>
-            </div>
-          </div>
+        `;
 
-          <div class="best-results-section">
-             <h2 style="margin-bottom:16px; font-size:1.4rem">🌟 Личные рекорды</h2>
-             <div class="records-grid">
-                <div class="record-item">
-                   <div class="record-icon">⚔️</div>
-                   <div class="record-info">
-                     <div class="record-value">${user.bestResult || 0}</div>
-                     <div class="record-label">Лучшая дуэль</div>
-                   </div>
-                </div>
-                <div class="record-item">
-                   <div class="record-icon">⚡</div>
-                   <div class="record-info">
-                     <div class="record-value">${user.bestSolo || 0}</div>
-                     <div class="record-label">Лучший Штурм</div>
-                   </div>
-                </div>
-             </div>
-          </div>
-
-          <div class="match-history-section" id="match-history-section">
-            <h2 style="margin-bottom:16px; font-size:1.4rem">📜 История матчей</h2>
-            <div id="match-history-list" class="match-history-list">
-              <div style="text-align:center;padding:24px;color:var(--text-muted)">Загрузка...</div>
-            </div>
-          </div>
-
-          <div style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin-top:32px">
-            <button class="btn btn-primary btn-lg" id="profile-duel-btn">🏠 Создать комнату</button>
-            <button class="btn btn-secondary btn-lg" id="profile-search-btn">🔍 Найти соперника</button>
-            <button class="btn btn-accent btn-lg" id="profile-solo-btn">⚡ Штурм</button>
-          </div>
-        </div>
-      `;
-      $('#profile-duel-btn').addEventListener('click', () => {
-        renderDuelSetup();
-        navigateTo('duel-setup');
-      });
-      $('#profile-search-btn').addEventListener('click', () => {
-        renderMatchmaking();
-        navigateTo('matchmaking');
-      });
-      $('#profile-solo-btn').addEventListener('click', () => {
-        renderSoloSetup('blitz');
-        navigateTo('solo-setup');
-      });
-
-      // Load match history
-      loadMatchHistory(user.username);
+        loadMatchHistory(user.username);
+        $('#profile-duel-btn').addEventListener('click', () => navigateTo('duel-setup'));
+        $('#profile-search-btn').addEventListener('click', () => { renderMatchmaking(); navigateTo('matchmaking'); });
+        $('#profile-solo-btn').addEventListener('click', () => navigateTo('solo-setup'));
+        $('#profile-back-btn').addEventListener('click', () => navigateTo('home'));
     });
   }
 

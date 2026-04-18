@@ -299,18 +299,26 @@ async function endGame(roomCode) {
   if (p1Db) {
     const isWin = !isSolo && p1.score > p2.score;
     const isLoss = !isSolo && p1.score < p2.score;
-    updatePromises.push(db.updateUserStats(p1.name, {
+    
+    const statsUpdate = {
       totalSolved: (p1Db.totalSolved || 0) + (p1 ? p1.score : 0),
       totalGames: (p1Db.totalGames || 0) + 1,
       wins: (p1Db.wins || 0) + (isWin ? 1 : 0),
       losses: (p1Db.losses || 0) + (isLoss ? 1 : 0),
-      glicko_rating: (p1Db.glicko_rating || 1500) + p1RatingDelta
-    }));
+      glicko_rating: (p1Db.glicko_rating || 1500) + p1RatingDelta,
+      bestResult: Math.max(p1Db.bestResult || 0, p1.score)
+    };
+    
+    if (isSolo) {
+      statsUpdate.bestSolo = Math.max(p1Db.bestSolo || 0, p1.score);
+    }
+
+    updatePromises.push(db.updateUserStats(p1.name, statsUpdate));
     updatePromises.push(db.recordMatchResult({
       username: p1.name,
       score: p1.score,
       is_win: isWin,
-      mode: isSolo ? 'solo' : 'duel'
+      mode: isSolo ? (room.difficulty || 'solo') : (room.difficulty || 'duel')
     }));
   }
 
@@ -322,13 +330,14 @@ async function endGame(roomCode) {
       totalGames: (p2Db.totalGames || 0) + 1,
       wins: (p2Db.wins || 0) + (isWin ? 1 : 0),
       losses: (p2Db.losses || 0) + (isLoss ? 1 : 0),
-      glicko_rating: (p2Db.glicko_rating || 1500) + p2RatingDelta
+      glicko_rating: (p2Db.glicko_rating || 1500) + p2RatingDelta,
+      bestResult: Math.max(p2Db.bestResult || 0, p2.score)
     }));
     updatePromises.push(db.recordMatchResult({
       username: p2.name,
       score: p2.score,
       is_win: isWin,
-      mode: 'duel'
+      mode: room.difficulty || 'duel'
     }));
   }
 
@@ -417,6 +426,15 @@ io.on("connection", (socket) => {
       if (!username) return callback({ ok: false, msg: 'No username' });
       const matches = await db.getMatchHistory(username, limit);
       callback({ ok: true, matches });
+    } catch (e) { callback({ ok: false }); }
+  });
+
+  socket.on('get-best-results', async (data, callback) => {
+    try {
+      const username = data && data.username;
+      if (!username) return callback({ ok: false });
+      const records = await db.getBestResultsPerMode(username);
+      callback({ ok: true, records });
     } catch (e) { callback({ ok: false }); }
   });
 
